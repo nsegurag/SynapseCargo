@@ -1,12 +1,11 @@
 import sys
 import os
-import sqlite3
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
-# Importamos desde src.utils
-from src.utils import get_db_path, get_user_data_dir
+# ✅ IMPORTACIÓN CORRECTA: Conexión a Nube + Carpeta Segura Usuario
+from src.utils import get_db_connection, get_user_data_dir
 
 # ------------------ TAMAÑOS DE ETIQUETA ------------------
 def get_page_size(size):
@@ -21,11 +20,18 @@ def get_page_size(size):
 
 # ------------------ MOTOR DE DIBUJO ADAPTATIVO ------------------
 def draw_flexible_label(c, w, h, data):
+    """
+    Dibuja una etiqueta estilo IATA profesional.
+    Busca el código de barras en la carpeta AppData del usuario.
+    """
     is_compact = h < (3 * inch)
+
+    # Márgenes
     margin = 4 if is_compact else 10
     safe_w = w - (2 * margin)
     safe_h = h - (2 * margin)
     
+    # Fuente inteligente
     font_s = h / 14 if is_compact else w / 24
     c.setLineWidth(1.0 if is_compact else 1.2)      
     
@@ -101,7 +107,7 @@ def draw_flexible_label(c, w, h, data):
         c.drawCentredString(w / 2, y_total + 5, f"{data['total_pcs']} PCS")
 
     # 4. BARCODE
-    # Ruta en AppData
+    # ✅ Buscamos en la carpeta AppData del usuario
     barcode_filename = f"{data['barcode_text']}.png"
     barcode_path = os.path.join(get_user_data_dir(), "barcodes", barcode_filename)
     
@@ -124,7 +130,7 @@ def draw_flexible_label(c, w, h, data):
             
             c.drawImage(img, x_img, y_img, width=draw_w, height=draw_h, mask='auto')
             
-            # Texto debajo
+            # Texto debajo (ya que barcode_utils no lo pone para evitar errores de fuente)
             if not is_compact:
                 c.setFont("Helvetica", font_s * 0.5)
                 c.drawCentredString(w/2, margin - 2, data['barcode_text'])
@@ -132,42 +138,66 @@ def draw_flexible_label(c, w, h, data):
         except Exception as e:
             print(f"Error dibujando barcode: {e}")
     else:
-        # Debug visual mejorado
+        # Debug visual
         print(f"⚠️ Barcode NO encontrado en: {barcode_path}")
         c.setFont("Helvetica", 6)
         c.drawString(margin, margin + 10, "ERROR: Barcode Missing")
-        c.drawString(margin, margin + 2, f"Path: {barcode_path[-40:]}") # Muestra últimos 40 caracteres de la ruta
+        c.drawString(margin, margin + 2, f"Path: {barcode_path[-40:]}") # Debug ruta
 
-# ------------------ MAIN ------------------
+# ------------------ FUNCIÓN PRINCIPAL ------------------
 def generate_labels_pdf(master_id, file_path, size="4x6"):
     w, h = get_page_size(size)
-    conn = sqlite3.connect(get_db_path())
+
+    # ✅ Conexión a Nube (PostgreSQL)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("SELECT mawb_number, origin, destination, total_pieces FROM masters WHERE id=?", (master_id,))
+
+    # ✅ Sintaxis %s en lugar de ?
+    cursor.execute("SELECT mawb_number, origin, destination, total_pieces FROM masters WHERE id=%s", (master_id,))
     master = cursor.fetchone()
-    if not master: conn.close(); return
+    
+    if not master:
+        conn.close()
+        return
+    
     mawb, org, dest, total_pcs = master
 
+    # ✅ Sintaxis %s
     cursor.execute("""
         SELECT l.mawb_counter, l.hawb_counter, l.barcode_data, h.hawb_number
-        FROM labels l LEFT JOIN houses h ON l.house_id = h.id WHERE l.master_id = ?
+        FROM labels l
+        LEFT JOIN houses h ON l.house_id = h.id
+        WHERE l.master_id = %s
     """, (master_id,))
+    
     labels = cursor.fetchall()
     conn.close()
 
-    if not labels: return
+    if not labels:
+        return
 
     c = canvas.Canvas(file_path, pagesize=(w, h))
+
     for lbl in labels:
         m_cnt, h_cnt, b_code, h_num = lbl
-        counter_display = h_cnt.replace("/", " of ") if h_num else m_cnt.replace("/", " of ")
         
+        if h_num:
+            counter_display = h_cnt.replace("/", " of ")
+        else:
+            counter_display = m_cnt.replace("/", " of ")
+
         data = {
-            "mawb": mawb, "origin": org, "dest": dest, "total_pcs": total_pcs,
-            "counter_str": counter_display, "barcode_text": b_code, "hawb": h_num if h_num else ""
+            "mawb": mawb,
+            "origin": org,
+            "dest": dest,
+            "total_pcs": total_pcs,
+            "counter_str": counter_display,
+            "barcode_text": b_code,
+            "hawb": h_num if h_num else ""
         }
+
         draw_flexible_label(c, w, h, data)
         c.showPage()
+
     c.save()
     print(f"✅ PDF Generado: {file_path}")

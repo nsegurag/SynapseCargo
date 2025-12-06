@@ -1,0 +1,27 @@
+# --- Basura de PyInstaller ---
+build/
+dist/
+*.spec
+
+# --- Archivos temporales de Python ---
+__pycache__/
+*.py[cod]
+
+# --- Entorno Virtual ---
+env/
+venv/
+.env
+
+# --- Archivos de Sistema ---
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# --- Base de Datos y Archivos Locales ---
+# (Aunque ya usamos la nube, esto evita subir basura vieja)
+*.db
+data/*.db
+data/barcodes/
+*.log
+*.pdf

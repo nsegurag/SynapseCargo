@@ -1,32 +1,31 @@
-import sqlite3
 import datetime
-from src.utils import get_db_path
+# ✅ CAMBIO: Usamos la conexión a la nube
+from src.utils import get_db_connection
 
 def log_action(user, action, mawb_number, details=""):
     """
-    Guarda un evento en la bitácora (tabla logs) de forma robusta y segura.
-    No permite que un error de log tumbe la aplicación.
+    Guarda un evento en la bitácora (tabla logs) en la nube.
+    Diseñado para no romper el programa si la conexión falla (solo avisa en consola).
     """
     try:
-        # 1. Obtenemos la ruta segura (AppData)
-        db_path = get_db_path()
+        # 1. Conectamos a Supabase
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-        # 2. Usamos 'with' para garantizar que la conexión se cierre sola
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
+        # 2. Ejecutamos el INSERT (Sintaxis PostgreSQL: %s)
+        # Nota: La columna en la base de datos se llama 'user_name'
+        cursor.execute("""
+            INSERT INTO logs (user_name, action, mawb_number, details)
+            VALUES (%s, %s, %s, %s)
+        """, (user, action, mawb_number, details))
+        
+        conn.commit()
+        conn.close()
 
-            cursor.execute("""
-                INSERT INTO logs (user, action, mawb_number, details)
-                VALUES (?, ?, ?, ?)
-            """, (user, action, mawb_number, details))
-            
-            conn.commit()
-
-        # 3. Feedback en consola (Amigable para el desarrollador)
-        # Esto te ayuda a ver qué pasa sin abrir la base de datos
+        # 3. Feedback en consola
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         print(f"📝 [{timestamp}] LOG: {user} -> {action} ({mawb_number}) | {details}")
 
     except Exception as e:
-        # Si falla el log, solo lo imprimimos en consola, NO cerramos el programa
+        # Si falla el log (ej. sin internet), no detenemos el programa principal
         print(f"❌ ERROR CRÍTICO EN LOGGER: {e}")

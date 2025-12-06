@@ -1,18 +1,17 @@
-import sqlite3
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, 
-    QTableWidgetItem, QLabel
+    QTableWidgetItem, QLabel, QMessageBox
 )
 from PyQt6.QtCore import Qt
 
-# ✅ Importación correcta desde la nueva estructura
-from src.utils import get_db_path
+# ✅ CAMBIO: Importamos la conexión a la nube
+from src.utils import get_db_connection
 
 class LogsViewer(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("📒 Bitácora del sistema")
+        self.setWindowTitle("📒 Bitácora del sistema (Nube)")
         self.setGeometry(300, 150, 900, 500)
 
         layout = QVBoxLayout()
@@ -43,31 +42,38 @@ class LogsViewer(QWidget):
     def load_logs(self):
         self.table.setRowCount(0)
 
-        # Usar ruta segura
-        conn = sqlite3.connect(get_db_path())
-        cursor = conn.cursor()
+        try:
+            # ✅ Conexión a PostgreSQL (Supabase)
+            conn = get_db_connection()
+            cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT 
-                id, 
-                user, 
-                action, 
-                mawb_number, 
-                details, 
-                created_at
-            FROM logs
-            ORDER BY id DESC
-        """)
+            # ✅ CAMBIO: 'user' -> 'user_name' (Así se llama la columna en la nube)
+            cursor.execute("""
+                SELECT 
+                    id, 
+                    user_name, 
+                    action, 
+                    mawb_number, 
+                    details, 
+                    created_at
+                FROM logs
+                ORDER BY id DESC
+            """)
 
-        rows = cursor.fetchall()
-        conn.close()
+            rows = cursor.fetchall()
+            conn.close()
 
-        for row_index, row_data in enumerate(rows):
-            self.table.insertRow(row_index)
+            for row_index, row_data in enumerate(rows):
+                self.table.insertRow(row_index)
 
-            for col_index, value in enumerate(row_data):
-                self.table.setItem(
-                    row_index,
-                    col_index,
-                    QTableWidgetItem(str(value))
-                )
+                for col_index, value in enumerate(row_data):
+                    self.table.setItem(
+                        row_index,
+                        col_index,
+                        QTableWidgetItem(str(value))
+                    )
+        
+        except Exception as e:
+            print(f"❌ Error cargando logs: {e}")
+            # Opcional: Mostrar alerta si falla la carga
+            # QMessageBox.warning(self, "Error", "No se pudo cargar la bitácora desde la nube.")

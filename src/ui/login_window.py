@@ -1,27 +1,22 @@
 import sys
-import sqlite3
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QMessageBox, 
     QVBoxLayout, QFrame, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette, QColor, QCursor
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPalette, QColor
 
-# IMPORTACIONES ACTUALIZADAS PARA LA NUEVA ESTRUCTURA
-from src.utils import get_db_path
+# ✅ IMPORTACIONES CORRECTAS (Nube + Actualizador)
+from src.utils import get_db_connection 
 from src.ui.main_window import MainWindow
 from src.logic.updater import check_for_updates
-
-DB_PATH = get_db_path()
 
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Bienvenido")
-        # Un poco más alto para que quepa la sombra sin cortarse
         self.setFixedSize(420, 480) 
         
-        # SOLUCIÓN AL FONDO BLANCO Y BOTÓN AZUL:
         pal = self.palette()
         pal.setColor(QPalette.ColorRole.Window, QColor("#FFFFFF"))
         self.setPalette(pal)
@@ -29,15 +24,12 @@ class LoginWindow(QWidget):
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # SOLUCIÓN A LA CAJA RECORTADA:
         layout.setContentsMargins(50, 60, 50, 60)
         
-        # Tarjeta de Login
         card = QFrame()
         card.setObjectName("Card")
         card.setFixedSize(320, 360) 
         
-        # Sombra profesional
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(25)
         shadow.setXOffset(0)
@@ -45,7 +37,6 @@ class LoginWindow(QWidget):
         shadow.setColor(QColor(0, 0, 0, 50)) 
         card.setGraphicsEffect(shadow)
 
-        # Estilo local de la tarjeta (Solo lo específico de la tarjeta)
         card.setStyleSheet("""
             QFrame#Card {
                 background-color: white;
@@ -58,7 +49,6 @@ class LoginWindow(QWidget):
         card_layout.setSpacing(20)
         card_layout.setContentsMargins(30, 40, 30, 40)
 
-        # Header
         lbl_icon = QLabel("📦")
         lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_icon.setStyleSheet("font-size: 40px; background: transparent; border: none;")
@@ -69,7 +59,6 @@ class LoginWindow(QWidget):
         lbl_title.setStyleSheet("font-size: 20px; font-weight: bold; color: #222; background: transparent; border: none;")
         card_layout.addWidget(lbl_title)
 
-        # Inputs
         self.user_input = QLineEdit()
         self.user_input.setPlaceholderText("Usuario")
         self.user_input.setMinimumHeight(35)
@@ -86,12 +75,11 @@ class LoginWindow(QWidget):
         
         card_layout.addSpacing(10)
 
-        # Botón
         self.login_btn = QPushButton("Ingresar")
         self.login_btn.setObjectName("Primary")
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_btn.setMinimumHeight(40)
-        self.login_btn.setDefault(True) # Reacciona al Enter
+        self.login_btn.setDefault(True)
         self.login_btn.clicked.connect(self.login)
         card_layout.addWidget(self.login_btn)
 
@@ -99,7 +87,6 @@ class LoginWindow(QWidget):
         layout.addWidget(card)
         self.setLayout(layout)
 
-        # Lógica de teclado profesional
         QWidget.setTabOrder(self.user_input, self.pass_input)
         QWidget.setTabOrder(self.pass_input, self.login_btn)
         self.user_input.returnPressed.connect(self.pass_input.setFocus)
@@ -107,7 +94,7 @@ class LoginWindow(QWidget):
         
         self.user_input.setFocus()
 
-        from PyQt6.QtCore import QTimer
+        # ✅ LOGICA DE ACTUALIZACIÓN (Activada)
         QTimer.singleShot(1000, lambda: check_for_updates(self))
 
     def login(self):
@@ -123,13 +110,15 @@ class LoginWindow(QWidget):
             return
 
         try:
-            conn = sqlite3.connect(DB_PATH)
+            # ✅ CONEXIÓN A LA NUBE (PostgreSQL)
+            conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT role FROM users WHERE username=? AND password=?", (username, password))
+            # ✅ SINTAXIS POSTGRESQL (%s en vez de ?)
+            cursor.execute("SELECT role FROM users WHERE username=%s AND password=%s", (username, password))
             user = cursor.fetchone()
             conn.close()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error de conexión:\n{e}")
+            QMessageBox.critical(self, "Error de Conexión", f"No se pudo conectar a la nube.\n\n{e}")
             return
 
         if user:
@@ -137,6 +126,6 @@ class LoginWindow(QWidget):
             self.main.show()
             self.close()
         else:
-            QMessageBox.warning(self, "Error", "Usuario o contraseña incorrectos.")
+            QMessageBox.warning(self, "Acceso Denegado", "Usuario o contraseña incorrectos.")
             self.pass_input.clear()
             self.pass_input.setFocus()

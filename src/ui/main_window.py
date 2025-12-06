@@ -1,4 +1,3 @@
-import sqlite3
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QMessageBox,
@@ -8,10 +7,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QAction, QFont
 
+# ✅ IMPORTACIONES CORREGIDAS
 from src.logic.barcode_utils import generate_barcode_image
 from src.ui.mawb_manager import MAWBManager
 from src.logic.logger import log_action
-from src.utils import get_db_path
+from src.utils import get_db_connection # Usamos la conexión a la nube
 
 # ===================== DIALOGO AGREGAR HAWB =====================
 class AddHAWBDialog(QDialog):
@@ -238,12 +238,11 @@ class MainWindow(QWidget):
         dialog = AddHAWBDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # VALIDACIÓN DUPLICADOS LOCAL (HAWB)
-            # Verificamos si ya existe en la lista visual actual antes de agregar
             new_hawb = dialog.hawb.strip().upper()
             for row in self.hawb_rows:
                 if row["hawb"].strip().upper() == new_hawb:
                     QMessageBox.warning(self, "Duplicado", f"La HAWB '{new_hawb}' ya está en la lista.")
-                    return # Cancelar la adición
+                    return
 
             self.add_hawb_row(dialog.hawb, dialog.pieces)
 
@@ -333,7 +332,7 @@ class MainWindow(QWidget):
         self.hawb_rows = []
         self.prefix_input.setFocus() 
 
-    # ===================== GUARDADO =====================
+    # ===================== GUARDADO (CONECTADO A LA NUBE) =====================
     def save_data(self):
         prefix = self.prefix_input.text().strip()
         number = self.number_input.text().strip()
@@ -348,22 +347,27 @@ class MainWindow(QWidget):
 
         full_mawb = f"{prefix}-{number}"
         
-        # VALIDACIÓN DUPLICADOS MAWB (DATABASE)
+        # --- PASO 1: VALIDAR DUPLICADOS EN SUPABASE ---
+        conn = None
         try:
-            conn = sqlite3.connect(get_db_path())
+            conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM masters WHERE mawb_number = ?", (full_mawb,))
+            
+            # Nota el uso de %s en lugar de ? para Postgres
+            cursor.execute("SELECT id FROM masters WHERE mawb_number = %s", (full_mawb,))
             exists = cursor.fetchone()
-            conn.close()
             
             if exists:
-                QMessageBox.warning(self, "Duplicado", f"La MAWB {full_mawb} ya existe en el inventario.")
-                return # Detener guardado
+                conn.close()
+                QMessageBox.warning(self, "Duplicado", f"La MAWB {full_mawb} ya existe en el inventario (Nube).")
+                return
                 
         except Exception as e:
-            QMessageBox.critical(self, "Error BD", f"Error verificando duplicados: {e}")
+            if conn: conn.close()
+            QMessageBox.critical(self, "Error de Conexión", f"Error verificando duplicados:\n{e}")
             return
 
+        # --- VALIDACIÓN DE SUMA ---
         active_hawbs = []
         for row in self.hawb_rows:
             active_hawbs.append((row["hawb"], row["pieces"]))
@@ -371,18 +375,24 @@ class MainWindow(QWidget):
         if active_hawbs:
             sum_hawbs = sum(p for h, p in active_hawbs)
             if sum_hawbs != total:
+                if conn: conn.close()
                 QMessageBox.critical(self, "Error", f"Total declarado ({total}) no coincide con suma de HAWBs ({sum_hawbs}).")
                 return
 
+        # --- PASO 2: GUARDAR EN LA NUBE ---
         try:
-            conn = sqlite3.connect(get_db_path())
+            # Reutilizamos la conexión si sigue abierta, sino abrimos una
+            if conn.closed:
+                conn = get_db_connection()
             cursor = conn.cursor()
 
+            # Insertar Master y obtener ID con 'RETURNING id' (Postgres way)
             cursor.execute("""
                 INSERT INTO masters (mawb_number, origin, destination, service, total_pieces, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
             """, (full_mawb, origin, dest, service, total, self.username))
-            master_id = cursor.lastrowid
+            
+            master_id = cursor.fetchone()[0]
             
             mawb_counter = 1
             if not active_hawbs:
@@ -390,13 +400,14 @@ class MainWindow(QWidget):
                     mawb_c = f"{i}/{total}"
                     code = f"{full_mawb}-{str(i).zfill(3)}"
                     generate_barcode_image(code)
-                    cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (?, ?, ?)", 
+                    cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (%s, %s, %s)", 
                                    (master_id, mawb_c, code))
             else:
                 for hawb_num, pcs in active_hawbs:
-                    cursor.execute("INSERT INTO houses (master_id, hawb_number, pieces) VALUES (?, ?, ?)", 
+                    cursor.execute("INSERT INTO houses (master_id, hawb_number, pieces) VALUES (%s, %s, %s) RETURNING id", 
                                    (master_id, hawb_num, pcs))
-                    house_id = cursor.lastrowid
+                    house_id = cursor.fetchone()[0]
+                    
                     for i in range(1, pcs + 1):
                         mawb_c = f"{mawb_counter}/{total}"
                         hawb_c = f"{i}/{pcs}"
@@ -404,18 +415,20 @@ class MainWindow(QWidget):
                         generate_barcode_image(code)
                         cursor.execute("""
                             INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data)
-                            VALUES (?, ?, ?, ?, ?)
+                            VALUES (%s, %s, %s, %s, %s)
                         """, (master_id, house_id, mawb_c, hawb_c, code))
                         mawb_counter += 1
 
             conn.commit()
             conn.close()
+            
             log_action(self.username, "CREO MAWB", full_mawb, f"Total: {total}")
-            QMessageBox.information(self, "Éxito", "Etiquetas generadas correctamente.")
+            QMessageBox.information(self, "Éxito", "Etiquetas generadas y guardadas en la nube.")
             self.reset_fields()
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            if conn: conn.close()
+            QMessageBox.critical(self, "Error al Guardar", str(e))
 
     def open_manager(self):
         self.manager = MAWBManager(self.username)

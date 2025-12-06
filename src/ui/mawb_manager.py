@@ -1,4 +1,3 @@
-import sqlite3
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QTableWidget, 
     QTableWidgetItem, QMessageBox, QHBoxLayout, QFileDialog, 
@@ -9,15 +8,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QColor, QFont
 
-from src.utils import get_db_path
+# ✅ IMPORTACIONES PARA LA NUBE
+from src.utils import get_db_connection
 from src.logic.label_pdf import generate_labels_pdf
 from src.logic.barcode_utils import generate_barcode_image
 from src.logic.logger import log_action
 from src.ui.logs_viewer import LogsViewer
 
-DB_PATH = get_db_path()
-
-# ===================== ESTILOS LOCALES (TARJETAS) =====================
 CARD_STYLE = """
     QFrame#Card {
         background-color: white;
@@ -51,11 +48,7 @@ class SimpleHAWBDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setFixedSize(350, 220)
-        
-        self.setStyleSheet("""
-            QDialog { background-color: white; } 
-            QLabel { background: transparent; }
-        """)
+        self.setStyleSheet("QDialog { background-color: white; } QLabel { background: transparent; }")
 
         layout = QVBoxLayout()
         layout.setContentsMargins(25, 25, 25, 25)
@@ -112,36 +105,37 @@ class EditMAWBDialog(QDialog):
         self.username = username
         self.setWindowTitle("Editar MAWB")
         self.setFixedSize(400, 350)
-        
-        self.setStyleSheet("""
-            QDialog { background-color: white; } 
-            QLabel { background: transparent; }
-        """)
+        self.setStyleSheet("QDialog { background-color: white; } QLabel { background: transparent; }")
 
         layout = QVBoxLayout()
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
 
-        # Header
         lbl = QLabel("Editar Guía Master")
         lbl.setStyleSheet("font-size: 18px; font-weight: bold; color: #333;")
         layout.addWidget(lbl)
 
-        # Datos
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT origin, destination, service, total_pieces, mawb_number FROM masters WHERE id = ?", (master_id,))
-        data = cursor.fetchone()
-        
-        cursor.execute("SELECT COUNT(*) FROM houses WHERE master_id = ?", (master_id,))
-        self.has_hawbs = cursor.fetchone()[0] > 0
-        conn.close()
+        # DATOS (NUBE)
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            # %s para Postgres
+            cursor.execute("SELECT origin, destination, service, total_pieces, mawb_number FROM masters WHERE id = %s", (master_id,))
+            data = cursor.fetchone()
+            
+            cursor.execute("SELECT COUNT(*) FROM houses WHERE master_id = %s", (master_id,))
+            self.has_hawbs = cursor.fetchone()[0] > 0
+            conn.close()
 
-        if not data:
+            if not data:
+                self.reject()
+                return
+
+            self.old_origin, self.old_dest, self.old_srv, self.old_total, self.mawb_num = data
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error de conexión: {e}")
             self.reject()
             return
-
-        self.old_origin, self.old_dest, self.old_srv, self.old_total, self.mawb_num = data
 
         form = QFormLayout()
         form.setSpacing(10)
@@ -195,38 +189,42 @@ class EditMAWBDialog(QDialog):
         if not new_org or not new_dest or new_tot == 0:
             return
 
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            UPDATE masters SET origin=?, destination=?, service=?, total_pieces=? WHERE id=?
-        """, (new_org, new_dest, new_srv, new_tot, self.master_id))
-        
-        cursor.execute("DELETE FROM labels WHERE master_id=?", (self.master_id,))
-        
-        cursor.execute("SELECT id, hawb_number, pieces FROM houses WHERE master_id=?", (self.master_id,))
-        houses = cursor.fetchall()
-        
-        if not houses:
-            for i in range(1, new_tot + 1):
-                code = f"{self.mawb_num}-{str(i).zfill(3)}"
-                generate_barcode_image(code)
-                cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (?,?,?)", 
-                               (self.master_id, f"{i}/{new_tot}", code))
-        else:
-            m_counter = 1
-            for hid, hnum, hpcs in houses:
-                for i in range(1, hpcs + 1):
-                    code = f"{self.mawb_num}-{hnum}-{str(i).zfill(3)}"
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # UPDATE (Postgres)
+            cursor.execute("""
+                UPDATE masters SET origin=%s, destination=%s, service=%s, total_pieces=%s WHERE id=%s
+            """, (new_org, new_dest, new_srv, new_tot, self.master_id))
+            
+            # Regenerar etiquetas
+            cursor.execute("DELETE FROM labels WHERE master_id=%s", (self.master_id,))
+            cursor.execute("SELECT id, hawb_number, pieces FROM houses WHERE master_id=%s", (self.master_id,))
+            houses = cursor.fetchall()
+            
+            if not houses:
+                for i in range(1, new_tot + 1):
+                    code = f"{self.mawb_num}-{str(i).zfill(3)}"
                     generate_barcode_image(code)
-                    cursor.execute("INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data) VALUES (?,?,?,?,?)",
-                                   (self.master_id, hid, f"{m_counter}/{new_tot}", f"{i}/{hpcs}", code))
-                    m_counter += 1
+                    cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (%s,%s,%s)", 
+                                (self.master_id, f"{i}/{new_tot}", code))
+            else:
+                m_counter = 1
+                for hid, hnum, hpcs in houses:
+                    for i in range(1, hpcs + 1):
+                        code = f"{self.mawb_num}-{hnum}-{str(i).zfill(3)}"
+                        generate_barcode_image(code)
+                        cursor.execute("INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data) VALUES (%s,%s,%s,%s,%s)",
+                                    (self.master_id, hid, f"{m_counter}/{new_tot}", f"{i}/{hpcs}", code))
+                        m_counter += 1
 
-        conn.commit()
-        conn.close()
-        log_action(self.username, "EDIT MAWB", self.mawb_num, "Datos actualizados y etiquetas regeneradas")
-        self.accept()
+            conn.commit()
+            conn.close()
+            log_action(self.username, "EDIT MAWB", self.mawb_num, "Datos actualizados")
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
 # ===================== GESTOR DE MAWBs (MODERNO) =====================
 class MAWBManager(QWidget):
@@ -253,9 +251,8 @@ class MAWBManager(QWidget):
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
 
-        # --- BARRA SUPERIOR ---
+        # --- HEADER ---
         header_layout = QHBoxLayout()
-        
         title_lbl = QLabel("📦 Inventario de Guías")
         title_lbl.setStyleSheet("font-size: 24px; font-weight: bold; color: #222;")
         
@@ -284,14 +281,13 @@ class MAWBManager(QWidget):
         header_layout.addStretch()
         header_layout.addWidget(self.search_input)
         header_layout.addWidget(self.btn_logs)
-        
         main_layout.addLayout(header_layout)
 
-        # --- ÁREA DE CONTENIDO ---
+        # --- SPLIT VIEW ---
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
 
-        # 1. PANEL IZQUIERDO: TABLA MAESTRA
+        # IZQUIERDA
         left_frame = QFrame()
         left_frame.setObjectName("Card")
         shadow_l = QGraphicsDropShadowEffect(self)
@@ -321,10 +317,9 @@ class MAWBManager(QWidget):
         """)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        
         left_layout.addWidget(self.table)
         
-        # 2. PANEL DERECHO: DETALLES
+        # DERECHA
         self.right_frame = QFrame()
         self.right_frame.setObjectName("Card")
         self.right_frame.setFixedWidth(400) 
@@ -357,32 +352,37 @@ class MAWBManager(QWidget):
     def load_data(self):
         self.table.setRowCount(0)
         search = self.search_input.text().strip()
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
 
-        query = "SELECT id, mawb_number, origin, destination, service, total_pieces, label_size FROM masters"
-        params = []
-        if search:
-            query += " WHERE mawb_number LIKE ? OR origin LIKE ? OR destination LIKE ?"
-            like_txt = f"%{search}%"
-            params = [like_txt, like_txt, like_txt]
+            query = "SELECT id, mawb_number, origin, destination, service, total_pieces, label_size FROM masters"
+            params = []
+            if search:
+                # ILIKE es la magia de Postgres para búsqueda insensible a mayúsculas
+                query += " WHERE mawb_number ILIKE %s OR origin ILIKE %s OR destination ILIKE %s"
+                like_txt = f"%{search}%"
+                params = [like_txt, like_txt, like_txt]
+            
+            query += " ORDER BY id DESC"
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            for r_idx, row in enumerate(rows):
+                self.table.insertRow(r_idx)
+                self.table.setItem(r_idx, 0, QTableWidgetItem(str(row[0])))
+                mawb_item = QTableWidgetItem(row[1])
+                mawb_item.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+                self.table.setItem(r_idx, 1, mawb_item)
+                self.table.setItem(r_idx, 2, QTableWidgetItem(f"{row[2]} ➝ {row[3]}"))
+                self.table.setItem(r_idx, 3, QTableWidgetItem(row[4]))
+                self.table.setItem(r_idx, 4, QTableWidgetItem(f"{row[5]} pcs"))
+                size_val = row[6] if row[6] else "4x6"
+                self.table.setItem(r_idx, 5, QTableWidgetItem(size_val))
         
-        query += " ORDER BY id DESC"
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
-
-        for r_idx, row in enumerate(rows):
-            self.table.insertRow(r_idx)
-            self.table.setItem(r_idx, 0, QTableWidgetItem(str(row[0])))
-            mawb_item = QTableWidgetItem(row[1])
-            mawb_item.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-            self.table.setItem(r_idx, 1, mawb_item)
-            self.table.setItem(r_idx, 2, QTableWidgetItem(f"{row[2]} ➝ {row[3]}"))
-            self.table.setItem(r_idx, 3, QTableWidgetItem(row[4]))
-            self.table.setItem(r_idx, 4, QTableWidgetItem(f"{row[5]} pcs"))
-            size_val = row[6] if row[6] else "4x6"
-            self.table.setItem(r_idx, 5, QTableWidgetItem(size_val))
+        except Exception as e:
+            print(f"Error cargando datos: {e}")
 
     def on_row_selected(self):
         row = self.table.currentRow()
@@ -394,7 +394,7 @@ class MAWBManager(QWidget):
         mawb_num = self.table.item(row, 1).text()
         current_size = self.table.item(row, 5).text()
 
-        # --- PANEL DETALLES ---
+        # PANEL DETALLES
         title = QLabel(mawb_num)
         title.setStyleSheet("font-size: 22px; font-weight: bold; color: #0067C0;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -480,9 +480,9 @@ class MAWBManager(QWidget):
         self.list_hawbs.clear()
         self.current_hawbs_data = [] 
         
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, hawb_number, pieces FROM houses WHERE master_id=?", (master_id,))
+        cursor.execute("SELECT id, hawb_number, pieces FROM houses WHERE master_id=%s", (master_id,))
         rows = cursor.fetchall()
         conn.close()
 
@@ -497,15 +497,18 @@ class MAWBManager(QWidget):
     # ===================== ACCIONES =====================
     def update_size(self, master_id, mawb_num):
         new_size = self.combo_size.currentText()
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("UPDATE masters SET label_size=? WHERE id=?", (new_size, master_id))
-        conn.commit()
-        conn.close()
-        
-        row = self.table.currentRow()
-        self.table.setItem(row, 5, QTableWidgetItem(new_size))
-        log_action(self.username, "CHANGE SIZE", mawb_num, f"To {new_size}")
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE masters SET label_size=%s WHERE id=%s", (new_size, master_id))
+            conn.commit()
+            conn.close()
+            
+            row = self.table.currentRow()
+            self.table.setItem(row, 5, QTableWidgetItem(new_size))
+            log_action(self.username, "CHANGE SIZE", mawb_num, f"To {new_size}")
+        except Exception as e:
+            print(f"Error: {e}")
 
     def generate_pdf_action(self, master_id, mawb_num):
         size = self.combo_size.currentText()
@@ -522,9 +525,8 @@ class MAWBManager(QWidget):
     def add_hawb(self, master_id, mawb_num):
         dialog = SimpleHAWBDialog("Agregar HAWB", parent=self)
         if dialog.exec():
+            # VALIDACIÓN DUPLICADOS
             new_hawb = dialog.hawb.strip().upper()
-            
-            # VALIDACIÓN DUPLICADOS (HAWB)
             for _, existing_h, _ in self.current_hawbs_data:
                 if existing_h.strip().upper() == new_hawb:
                     QMessageBox.warning(self, "Duplicado", f"La HAWB '{new_hawb}' ya existe en esta guía Master.")
@@ -533,14 +535,14 @@ class MAWBManager(QWidget):
             try:
                 current_row = self.table.currentRow()
 
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO houses (master_id, hawb_number, pieces) VALUES (?,?,?)", 
+                cursor.execute("INSERT INTO houses (master_id, hawb_number, pieces) VALUES (%s,%s,%s)", 
                                (master_id, dialog.hawb, dialog.pieces))
                 
-                cursor.execute("SELECT SUM(pieces) FROM houses WHERE master_id=?", (master_id,))
+                cursor.execute("SELECT SUM(pieces) FROM houses WHERE master_id=%s", (master_id,))
                 new_total = cursor.fetchone()[0]
-                cursor.execute("UPDATE masters SET total_pieces=? WHERE id=?", (new_total, master_id))
+                cursor.execute("UPDATE masters SET total_pieces=%s WHERE id=%s", (new_total, master_id))
                 
                 self.regenerate_labels_db(cursor, master_id, mawb_num, new_total)
                 
@@ -569,13 +571,13 @@ class MAWBManager(QWidget):
             try:
                 current_row = self.table.currentRow() 
 
-                conn = sqlite3.connect(DB_PATH)
+                conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE houses SET hawb_number=?, pieces=? WHERE id=?", (dialog.hawb, dialog.pieces, hid))
+                cursor.execute("UPDATE houses SET hawb_number=%s, pieces=%s WHERE id=%s", (dialog.hawb, dialog.pieces, hid))
                 
-                cursor.execute("SELECT SUM(pieces) FROM houses WHERE master_id=?", (master_id,))
+                cursor.execute("SELECT SUM(pieces) FROM houses WHERE master_id=%s", (master_id,))
                 new_total = cursor.fetchone()[0]
-                cursor.execute("UPDATE masters SET total_pieces=? WHERE id=?", (new_total, master_id))
+                cursor.execute("UPDATE masters SET total_pieces=%s WHERE id=%s", (new_total, master_id))
                 
                 self.regenerate_labels_db(cursor, master_id, mawb_num, new_total)
                 
@@ -602,15 +604,15 @@ class MAWBManager(QWidget):
         if confirm == QMessageBox.StandardButton.Yes:
             current_row = self.table.currentRow() 
 
-            conn = sqlite3.connect(DB_PATH)
+            conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM houses WHERE id=?", (hid,))
+            cursor.execute("DELETE FROM houses WHERE id=%s", (hid,))
             
-            cursor.execute("SELECT SUM(pieces) FROM houses WHERE master_id=?", (master_id,))
+            cursor.execute("SELECT SUM(pieces) FROM houses WHERE master_id=%s", (master_id,))
             res = cursor.fetchone()[0]
             new_total = res if res else 0
             
-            cursor.execute("UPDATE masters SET total_pieces=? WHERE id=?", (new_total, master_id))
+            cursor.execute("UPDATE masters SET total_pieces=%s WHERE id=%s", (new_total, master_id))
             self.regenerate_labels_db(cursor, master_id, mawb_num, new_total)
             
             conn.commit()
@@ -621,18 +623,18 @@ class MAWBManager(QWidget):
             self.on_row_selected() 
 
     def regenerate_labels_db(self, cursor, master_id, mawb_num, total_pieces):
-        cursor.execute("DELETE FROM labels WHERE master_id=?", (master_id,))
+        cursor.execute("DELETE FROM labels WHERE master_id=%s", (master_id,))
         
         if total_pieces == 0: return
 
-        cursor.execute("SELECT id, hawb_number, pieces FROM houses WHERE master_id=?", (master_id,))
+        cursor.execute("SELECT id, hawb_number, pieces FROM houses WHERE master_id=%s", (master_id,))
         houses = cursor.fetchall()
         
         if not houses:
             for i in range(1, total_pieces + 1):
                 code = f"{mawb_num}-{str(i).zfill(3)}"
                 generate_barcode_image(code)
-                cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (?,?,?)", 
+                cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (%s,%s,%s)", 
                                (master_id, f"{i}/{total_pieces}", code))
         else:
             m_counter = 1
@@ -640,7 +642,7 @@ class MAWBManager(QWidget):
                 for i in range(1, hpcs + 1):
                     code = f"{mawb_num}-{hnum}-{str(i).zfill(3)}"
                     generate_barcode_image(code)
-                    cursor.execute("INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data) VALUES (?,?,?,?,?)",
+                    cursor.execute("INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data) VALUES (%s,%s,%s,%s,%s)",
                                    (master_id, hid, f"{m_counter}/{total_pieces}", f"{i}/{hpcs}", code))
                     m_counter += 1
 
@@ -657,25 +659,27 @@ class MAWBManager(QWidget):
                                        f"¿Estás seguro de eliminar la MAWB {mawb_num}?\nSe borrarán todas sus HAWBs y etiquetas.",
                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if confirm == QMessageBox.StandardButton.Yes:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM labels WHERE master_id=?", (master_id,))
-            cursor.execute("DELETE FROM houses WHERE master_id=?", (master_id,))
-            cursor.execute("DELETE FROM masters WHERE id=?", (master_id,))
-            conn.commit()
-            conn.close()
-            
-            log_action(self.username, "DELETE MAWB", mawb_num, "Full deletion")
-            self.load_data()
-            
-            # [CORRECCIÓN CRASH] Limpiamos y creamos un nuevo label seguro
-            self.clear_right_panel()
-            lbl_deleted = QLabel("Guía Eliminada 🗑️")
-            lbl_deleted.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_deleted.setStyleSheet("color: #D32F2F; font-size: 18px; font-weight: bold;")
-            
-            self.right_layout.addWidget(lbl_deleted)
-            self.right_layout.addStretch()
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM labels WHERE master_id=%s", (master_id,))
+                cursor.execute("DELETE FROM houses WHERE master_id=%s", (master_id,))
+                cursor.execute("DELETE FROM masters WHERE id=%s", (master_id,))
+                conn.commit()
+                conn.close()
+                
+                log_action(self.username, "DELETE MAWB", mawb_num, "Full deletion")
+                self.load_data()
+                
+                # Limpiar panel derecho de forma segura
+                self.clear_right_panel()
+                lbl_deleted = QLabel("Guía Eliminada 🗑️")
+                lbl_deleted.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lbl_deleted.setStyleSheet("color: #D32F2F; font-size: 18px; font-weight: bold;")
+                self.right_layout.addWidget(lbl_deleted)
+                self.right_layout.addStretch()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e))
 
     def open_logs(self):
         self.logs = LogsViewer()
