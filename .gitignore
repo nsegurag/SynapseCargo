@@ -19,9 +19,13 @@ Thumbs.db
 .DS_Store
 
 # --- Base de Datos y Archivos Locales ---
-# (Aunque ya usamos la nube, esto evita subir basura vieja)
 *.db
 data/*.db
 data/barcodes/
 *.log
 *.pdf
+
+# --- Salida y Ejecutables (LO NUEVO) ---
+# Esto ignora toda la carpeta Output y cualquier archivo .exe
+Output/
+*.exe
