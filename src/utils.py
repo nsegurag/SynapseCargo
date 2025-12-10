@@ -1,28 +1,43 @@
 import sys
 import os
-import socket
 import psycopg2
 import urllib.parse
 
 # ======================================================
-#  CONFIGURACIÓN DE SUPABASE
+#  CONFIGURACIÓN DE IDENTIDAD
 # ======================================================
-RAW_PASSWORD = "10Chocolates@"  # <--- ¡NO OLVIDES TU CONTRASEÑA!
+APP_NAME = "SynapseCargo"
+APP_VERSION = "3.0.0"
+ORG_NAME = "NSLabs"
 
-# Configuración Estándar (La que funcionaba antes)
-DB_HOST = "db.wskrvdxmugddtyeikeyx.supabase.co"
-DB_PORT = "5432"  # Volvemos al puerto estándar
+# ======================================================
+#  CONFIGURACIÓN DE SUPABASE (CONEXIÓN ROBUSTA)
+# ======================================================
+# Tu contraseña real
+RAW_PASSWORD = "10Chocolates@"
+
+# 1. Usamos el Host Universal de AWS (Más compatible y estable)
+DB_HOST = "aws-0-us-east-1.pooler.supabase.com"
+
+# 2. Puerto del Pooler (Evita bloqueos comunes del 5432)
+DB_PORT = "6543" 
+
+# 3. Base de datos
 DB_NAME = "postgres"
-DB_USER = "postgres" # Volvemos al usuario simple
+
+# 4. USUARIO COMPUESTO (Obligatorio para el puerto 6543)
+# Formato: usuario.id_proyecto
+DB_USER = "postgres.wskrvdxmugddtyeikeyx"
 
 # ======================================================
 #  CONFIGURACIÓN DE VERSIONES
 # ======================================================
-CURRENT_VERSION = "2.0"
+CURRENT_VERSION = "3.0"
 UPDATE_URL = "https://raw.githubusercontent.com/nsegurag/LabelGenerator/refs/heads/main/version.txt"
 RELEASE_URL = "https://github.com/nsegurag/LabelGenerator/releases/latest"
 
 def resource_path(relative_path):
+    """Obtiene ruta absoluta para recursos dentro del exe"""
     try:
         base_path = sys._MEIPASS
     except Exception:
@@ -30,39 +45,29 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 def get_user_data_dir():
-    path = os.path.join(os.getenv('LOCALAPPDATA'), 'LabelGenerator')
+    """Ruta segura en AppData"""
+    path = os.path.join(os.getenv('LOCALAPPDATA'), APP_NAME)
     if not os.path.exists(path):
         os.makedirs(path)
     return path
 
-def resolve_host_to_ipv4(hostname):
-    """
-    Intenta resolver la IP numérica. Si falla, devuelve el nombre original silenciosamente.
-    """
-    try:
-        info = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
-        ip_address = info[0][4][0]
-        return ip_address
-    except Exception:
-        # Si falla la resolución forzada, NO imprimimos error para no asustar.
-        # Simplemente devolvemos el hostname original y dejamos que el conector decida.
-        return hostname
-
 def get_db_connection():
+    """
+    Conexión directa usando el Pooler de AWS.
+    Esta configuración salta los problemas de DNS y IPv6.
+    """
     try:
-        # 1. Obtenemos la IP numérica (Ej: 12.34.56.78) en lugar del nombre
-        target_host = resolve_host_to_ipv4(DB_HOST)
-        
-        # 2. Codificamos la contraseña
+        # Codificamos la contraseña para evitar errores con símbolos (@)
         encoded_pass = urllib.parse.quote_plus(RAW_PASSWORD)
         
-        # 3. Construimos la URL usando la IP directa y el puerto 5432
-        # Al usar la IP, saltamos el problema de DNS/IPv6 del router
-        db_uri = f"postgresql://{DB_USER}:{encoded_pass}@{target_host}:{DB_PORT}/{DB_NAME}?sslmode=require"
+        # Construimos la URL de conexión segura
+        db_uri = f"postgresql://{DB_USER}:{encoded_pass}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
         
+        # Conectamos
         conn = psycopg2.connect(db_uri)
         return conn
         
     except Exception as e:
-        print(f"❌ Error conectando a Supabase: {e}")
+        print(f"❌ Error crítico conectando a Supabase: {e}")
+        # Relanzamos el error para que la interfaz gráfica lo muestre
         raise e
