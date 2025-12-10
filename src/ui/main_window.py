@@ -7,6 +7,8 @@ from PyQt6.QtGui import QIcon, QFont, QColor
 from src.ui.home_page import HomePage
 from src.ui.mawb_manager import MAWBManager
 from src.ui.label_generator import LabelGeneratorWidget as LabelGenView
+from src.ui.settings_page import SettingsPage
+from src.ui.profile_page import ProfilePage
 
 class SidebarButton(QPushButton):
     """Botón personalizado para la barra lateral - Estilo Azul Clásico"""
@@ -115,14 +117,10 @@ class MainWindow(QMainWindow):
         self.page_inv = MAWBManager(self.username)
         self.content_area.addWidget(self.page_inv)
 
-        self.page_profile = QLabel("👤 Módulo de Perfil")
-        self.page_profile.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.page_profile.setStyleSheet("font-size: 24px; color: #CCC; font-weight: bold;")
+        self.page_profile = ProfilePage(self.username) 
         self.content_area.addWidget(self.page_profile)
 
-        self.page_settings = QLabel("⚙️ Configuración del Sistema")
-        self.page_settings.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.page_settings.setStyleSheet("font-size: 24px; color: #CCC; font-weight: bold;")
+        self.page_settings = SettingsPage()
         self.content_area.addWidget(self.page_settings)
 
         container_content = QWidget()

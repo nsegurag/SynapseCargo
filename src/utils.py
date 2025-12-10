@@ -7,7 +7,7 @@ import urllib.parse
 #  IDENTIDAD DE LA APP
 # ======================================================
 APP_NAME = "SynapseCargo"
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.2.0"
 ORG_NAME = "NSLabs"
 
 # ======================================================
@@ -36,7 +36,7 @@ DB_USER = "postgres.brcqimesmfyagpxjwreb"
 #  CONFIGURACIÓN DE ACTUALIZACIONES (AUTO-UPDATER)
 # ======================================================
 # Versión actual de tu código
-CURRENT_VERSION = "3.0"
+CURRENT_VERSION = "3.2"
 
 # Archivo de texto simple donde pones el número de la nueva versión (ej: 3.1)
 VERSION_URL = "https://raw.githubusercontent.com/nsegurag/LabelGenerator/refs/heads/main/version.txt"
