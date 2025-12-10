@@ -1,24 +1,18 @@
 import psycopg2
-import urllib.parse 
+import urllib.parse
+import sys
 
 # ======================================================
-#  CONFIGURACIÓN (SOLO PON TU CONTRASEÑA AQUÍ)
+#  CONFIGURACIÓN DE INSTALACIÓN (NUEVO PROYECTO)
 # ======================================================
-# Escribe tu contraseña tal cual, con todos sus símbolos.
-# NO borres las comillas.
+# Tu contraseña real
 RAW_PASSWORD = "10Chocolates@" 
 
-# He configurado esto con TU dirección exacta de Supabase.
-# NO lo toques.
-HOST_STRING = "postgres@db.wskrvdxmugddtyeikeyx.supabase.co:5432/postgres"
-
-# --- MAGIA PARA QUE NO FALLE ---
-# Esto convierte símbolos problemáticos (como @, :, /) en código seguro
-encoded_pass = urllib.parse.quote_plus(RAW_PASSWORD)
-
-# Armamos la dirección final de forma segura
-user_part, rest_of_host = HOST_STRING.split("@", 1)
-DB_URI = f"postgresql://{user_part}:{encoded_pass}@{rest_of_host}"
+# DATOS DEL POOLER (Los que obtuviste del nuevo proyecto)
+DB_HOST = "aws-1-us-east-1.pooler.supabase.com"
+DB_PORT = "5432" # Usamos 5432 para crear tablas (Session Mode)
+DB_NAME = "postgres"
+DB_USER = "postgres.brcqimesmfyagpxjwreb" # Tu usuario largo nuevo
 
 def create_tables():
     commands = (
@@ -74,33 +68,37 @@ def create_tables():
     )
 
     try:
-        print(f"🔌 Conectando a Supabase...")
-        print(f"    Servidor: {rest_of_host}")
+        print(f"🔌 Conectando a Supabase (AWS Pooler)...")
+        print(f"    Host: {DB_HOST}")
         
-        conn = psycopg2.connect(DB_URI)
+        # Construcción segura de la URL
+        encoded_pass = urllib.parse.quote_plus(RAW_PASSWORD)
+        db_uri = f"postgresql://{DB_USER}:{encoded_pass}@{DB_HOST}:{DB_PORT}/{DB_NAME}?sslmode=require"
+        
+        conn = psycopg2.connect(db_uri)
         cur = conn.cursor()
 
-        print("🔨 Creando tablas...")
+        print("🔨 Creando tablas en la nube...")
         for command in commands:
             cur.execute(command)
 
         print("👤 Verificando usuario admin...")
-        cur.execute("SELECT * FROM users WHERE username = 'admin'")
+        cur.execute("SELECT id FROM users WHERE username = 'admin'")
         if cur.fetchone() is None:
             cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", 
                         ('admin', 'admin123', 'admin'))
-            print("✅ Usuario 'admin' creado (Pass: admin123)")
+            print("✅ Usuario 'admin' creado exitosamente (Pass: admin123)")
         else:
             print("ℹ️ El usuario 'admin' ya existe.")
 
         cur.close()
         conn.commit()
         conn.close()
-        print("🚀 ¡ÉXITO! Base de datos en la nube configurada y lista.")
+        print("🚀 ¡ÉXITO! Base de datos SynapseCargo configurada y lista.")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
-        print("💡 Verifica que tu contraseña sea correcta.")
+        print(f"❌ Error crítico: {e}")
+        print("💡 Verifica que la contraseña en el script sea correcta.")
 
 if __name__ == '__main__':
     create_tables()
