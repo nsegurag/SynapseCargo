@@ -15,6 +15,66 @@ from src.logic.barcode_utils import generate_barcode_image
 from src.logic.logger import log_action
 from src.ui.logs_viewer import LogsViewer
 
+# --- ESTILOS DIRECTOS (PARA FORZAR EL COLOR) ---
+BTN_BLUE = """
+    QPushButton {
+        background-color: #0067C0;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        padding: 6px 12px;
+    }
+    QPushButton:hover { background-color: #0056a3; }
+    QPushButton:pressed { background-color: #004480; }
+"""
+
+BTN_RED = """
+    QPushButton {
+        background-color: #D32F2F;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        padding: 6px 12px;
+    }
+    QPushButton:hover { background-color: #C62828; }
+    QPushButton:pressed { background-color: #B71C1C; }
+"""
+
+BTN_WHITE = """
+    QPushButton {
+        background-color: white;
+        border: 1px solid #CCC;
+        border-radius: 5px;
+        font-weight: 500;
+        color: #333;
+        padding: 6px 12px;
+    }
+    QPushButton:hover { background-color: #F5F5F5; }
+    QPushButton:pressed { background-color: #E0E0E0; }
+"""
+
+# Estilo corregido: Misma altura que Agregar/Editar, pero ancho compacto
+BTN_RED_ICON = """
+    QPushButton {
+        background-color: #FFF0F0;
+        color: #D32F2F;
+        border: 1px solid #FFCDCD;
+        border-radius: 5px;
+        font-size: 14px;
+        font-weight: bold;
+        padding: 6px 12px; 
+        min-width: 15px;
+    }
+    QPushButton:hover {
+        background-color: #D32F2F;
+        color: white;
+        border-color: #D32F2F;
+    }
+    QPushButton:pressed { background-color: #B71C1C; }
+"""
+
 CARD_STYLE = """
     QFrame#Card {
         background-color: white;
@@ -76,8 +136,10 @@ class SimpleHAWBDialog(QDialog):
 
         btns = QHBoxLayout()
         self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn.setStyleSheet(BTN_WHITE) # Estilo Directo
+        
         self.add_btn = QPushButton("Guardar")
-        self.add_btn.setObjectName("Primary") 
+        self.add_btn.setStyleSheet(BTN_BLUE) # Estilo Directo
 
         self.add_btn.clicked.connect(self.accept_data)
         self.cancel_btn.clicked.connect(self.reject)
@@ -168,8 +230,10 @@ class EditMAWBDialog(QDialog):
 
         btns = QHBoxLayout()
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setStyleSheet(BTN_WHITE) # Estilo Directo
+        
         btn_save = QPushButton("Guardar Cambios")
-        btn_save.setObjectName("Primary")
+        btn_save.setStyleSheet(BTN_BLUE) # Estilo Directo
         
         btn_save.clicked.connect(self.save_changes)
         btn_cancel.clicked.connect(self.reject)
@@ -274,7 +338,7 @@ class MAWBManager(QWidget):
         self.btn_logs = QPushButton("📒 Bitácora")
         self.btn_logs.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_logs.setMinimumHeight(40)
-        self.btn_logs.setStyleSheet("padding: 0 20px; font-weight: bold;")
+        self.btn_logs.setStyleSheet(BTN_WHITE) # Estilo Directo
         self.btn_logs.clicked.connect(self.open_logs)
 
         header_layout.addWidget(title_lbl)
@@ -422,14 +486,15 @@ class MAWBManager(QWidget):
         h_btns = QHBoxLayout()
         btn_add_h = QPushButton("➕ Agregar")
         btn_add_h.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add_h.setStyleSheet(BTN_WHITE) # Estilo Directo
         btn_add_h.clicked.connect(lambda: self.add_hawb(master_id, mawb_num))
         
         btn_edit_h = QPushButton("✏️ Editar")
+        btn_edit_h.setStyleSheet(BTN_WHITE) # Estilo Directo
         btn_edit_h.clicked.connect(lambda: self.edit_hawb(master_id, mawb_num))
         
         btn_del_h = QPushButton("🗑️")
-        btn_del_h.setFixedWidth(40)
-        btn_del_h.setObjectName("Danger")
+        btn_del_h.setStyleSheet(BTN_RED_ICON) # Estilo Especial con Icono
         btn_del_h.clicked.connect(lambda: self.delete_hawb(master_id, mawb_num))
 
         h_btns.addWidget(btn_add_h)
@@ -448,18 +513,18 @@ class MAWBManager(QWidget):
 
         btn_pdf = QPushButton("📄  Generar PDF")
         btn_pdf.setMinimumHeight(45)
-        btn_pdf.setObjectName("Primary")
         btn_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_pdf.setStyleSheet("font-size: 14px;")
+        btn_pdf.setStyleSheet(BTN_BLUE) # Estilo Directo
         btn_pdf.clicked.connect(lambda: self.generate_pdf_action(master_id, mawb_num))
         self.right_layout.addWidget(btn_pdf)
 
         m_btns = QHBoxLayout()
         btn_edit_m = QPushButton("Editar Master")
+        btn_edit_m.setStyleSheet(BTN_WHITE) # Estilo Directo
         btn_edit_m.clicked.connect(lambda: self.edit_mawb_action(master_id))
         
         btn_del_m = QPushButton("Eliminar Todo")
-        btn_del_m.setObjectName("Danger")
+        btn_del_m.setStyleSheet(BTN_RED) # Estilo Directo
         btn_del_m.clicked.connect(lambda: self.delete_mawb_action(master_id, mawb_num))
 
         m_btns.addWidget(btn_edit_m)

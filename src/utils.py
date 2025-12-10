@@ -30,12 +30,19 @@ DB_NAME = "postgres"
 # Es OBLIGATORIO usar este formato con el host de AWS.
 DB_USER = "postgres.brcqimesmfyagpxjwreb"
 
+# ... (Mantén tus imports y configuración de DB igual) ...
+
 # ======================================================
-#  CONFIGURACIÓN DE VERSIONES
+#  CONFIGURACIÓN DE ACTUALIZACIONES (AUTO-UPDATER)
 # ======================================================
+# Versión actual de tu código
 CURRENT_VERSION = "3.0"
-UPDATE_URL = "https://raw.githubusercontent.com/nsegurag/LabelGenerator/refs/heads/main/version.txt"
-RELEASE_URL = "https://github.com/nsegurag/LabelGenerator/releases/latest"
+
+# Archivo de texto simple donde pones el número de la nueva versión (ej: 3.1)
+VERSION_URL = "https://raw.githubusercontent.com/nsegurag/LabelGenerator/refs/heads/main/version.txt"
+
+# API de GitHub para encontrar el .exe automáticamente
+GITHUB_REPO_API = "https://api.github.com/repos/nsegurag/LabelGenerator/releases/latest"
 
 def resource_path(relative_path):
     try:

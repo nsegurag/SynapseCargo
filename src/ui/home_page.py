@@ -28,15 +28,20 @@ class StatCard(QFrame):
         lbl_icon = QLabel(icon)
         lbl_icon.setStyleSheet(f"font-size: 30px; color: {color};")
         
-        lbl_val = QLabel(str(value))
-        lbl_val.setStyleSheet("font-size: 32px; font-weight: bold; color: #333;")
+        # Guardamos la referencia (self.lbl_val) para poder cambiar el texto luego
+        self.lbl_val = QLabel(str(value))
+        self.lbl_val.setStyleSheet("font-size: 32px; font-weight: bold; color: #333;")
         
         lbl_title = QLabel(title)
         lbl_title.setStyleSheet("font-size: 14px; color: #777; font-weight: 500;")
         
         layout.addWidget(lbl_icon)
-        layout.addWidget(lbl_val)
+        layout.addWidget(self.lbl_val)
         layout.addWidget(lbl_title)
+
+    def update_value(self, new_value):
+        """Actualiza el número en la tarjeta al instante"""
+        self.lbl_val.setText(str(new_value))
 
 class HomePage(QWidget):
     def __init__(self, username):
@@ -62,16 +67,17 @@ class HomePage(QWidget):
         stats_layout.setSpacing(20)
         stats_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        # Obtener datos reales
+        # Obtener datos iniciales
         total_mawb, total_labels = self.get_stats()
 
-        card1 = StatCard("Guías Creadas", total_mawb, "📦", "#0067C0")
-        card2 = StatCard("Etiquetas Generadas", total_labels, "🏷️", "#00C04B")
-        card3 = StatCard("Alertas Pendientes", "0", "🔔", "#FF9900")
+        # Guardamos las tarjetas en variables (self.card1...) para usarlas en refresh_stats
+        self.card1 = StatCard("Guías Creadas", total_mawb, "📦", "#0067C0")
+        self.card2 = StatCard("Etiquetas Generadas", total_labels, "🏷️", "#00C04B")
+        self.card3 = StatCard("Alertas Pendientes", "0", "🔔", "#FF9900")
 
-        stats_layout.addWidget(card1)
-        stats_layout.addWidget(card2)
-        stats_layout.addWidget(card3)
+        stats_layout.addWidget(self.card1)
+        stats_layout.addWidget(self.card2)
+        stats_layout.addWidget(self.card3)
         
         main_layout.addLayout(stats_layout)
         main_layout.addStretch()
@@ -90,3 +96,12 @@ class HomePage(QWidget):
             return mawbs, labels
         except:
             return 0, 0
+
+    def refresh_stats(self):
+        """
+        MÉTODO DE ACTUALIZACIÓN:
+        Vuelve a consultar la base de datos y actualiza los números en pantalla.
+        """
+        mawbs, labels = self.get_stats()
+        self.card1.update_value(mawbs)
+        self.card2.update_value(labels)

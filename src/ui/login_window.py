@@ -11,6 +11,21 @@ from src.utils import get_db_connection
 from src.ui.main_window import MainWindow
 from src.logic.updater import check_for_updates
 
+# --- ESTILO DIRECTO PARA EL BOTÓN (Para asegurar que sea AZUL) ---
+BTN_BLUE = """
+    QPushButton {
+        background-color: #0067C0;
+        color: white;
+        border: 1px solid #005cbf;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 14px;
+        padding: 6px 12px;
+    }
+    QPushButton:hover { background-color: #0056a3; }
+    QPushButton:pressed { background-color: #004480; }
+"""
+
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -76,7 +91,8 @@ class LoginWindow(QWidget):
         card_layout.addSpacing(10)
 
         self.login_btn = QPushButton("Ingresar")
-        self.login_btn.setObjectName("Primary")
+        # self.login_btn.setObjectName("Primary")  <-- ELIMINADO PORQUE NO CARGABA BIEN
+        self.login_btn.setStyleSheet(BTN_BLUE)   # <-- AGREGADO: ESTILO AZUL FORZADO
         self.login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.login_btn.setMinimumHeight(40)
         self.login_btn.setDefault(True)
