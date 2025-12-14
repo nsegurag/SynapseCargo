@@ -2,7 +2,7 @@
 ; Enterprise Edition - NSLabs
 
 #define MyAppName "SynapseCargo"
-#define MyAppVersion "3.2"
+#define MyAppVersion "3.3"
 #define MyAppPublisher "NSLabs"
 #define MyAppExeName "SynapseCargo.exe"
 
