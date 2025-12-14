@@ -13,7 +13,6 @@ from src.logic.logger import log_action
 from src.utils import get_db_connection
 
 # --- ESTILOS "A PRUEBA DE BALAS" (DIRECTOS) ---
-# Definimos los colores aquí para obligar al botón a usarlos
 BTN_BLUE = """
     QPushButton {
         background-color: #0067C0;
@@ -40,15 +39,14 @@ BTN_WHITE = """
     QPushButton:hover { background-color: #F5F5F5; }
 """
 
-# CORRECCIÓN AQUÍ: Agregamos padding: 0px para que el emoji quepa en el botón pequeño
 BTN_RED_SMALL = """
     QPushButton {
         background-color: #FFF0F0;
         color: #D32F2F;
         border: 1px solid #FFCDCD;
         border-radius: 6px;
-        font-size: 18px; /* Un poco más grande para que se vea bien */
-        padding: 0px;    /* Vital para que no se oculte */
+        font-size: 18px; 
+        padding: 0px;    
         margin: 0px;
     }
     QPushButton:hover {
@@ -83,10 +81,10 @@ class AddHAWBDialog(QDialog):
 
         btns = QHBoxLayout()
         self.cancel_btn = QPushButton("Cancelar")
-        self.cancel_btn.setStyleSheet(BTN_WHITE) # Forzamos estilo blanco
+        self.cancel_btn.setStyleSheet(BTN_WHITE)
         
         self.add_btn = QPushButton("Agregar")
-        self.add_btn.setStyleSheet(BTN_BLUE) # Forzamos estilo azul
+        self.add_btn.setStyleSheet(BTN_BLUE)
 
         self.add_btn.clicked.connect(self.accept_data)
         self.cancel_btn.clicked.connect(self.reject)
@@ -106,7 +104,6 @@ class LabelGeneratorWidget(QWidget):
         super().__init__()
         self.username = username
         
-        # Estilos generales del contenedor (sin botones, esos van directos)
         self.setStyleSheet("""
             QLabel { background-color: transparent; color: #333; font-weight: 500; }
             QGroupBox { background-color: white; border: 1px solid #E0E0E0; border-radius: 8px; margin-top: 10px; padding-top: 10px; }
@@ -132,8 +129,13 @@ class LabelGeneratorWidget(QWidget):
         form_mawb.addRow("Número:", row_mawb)
 
         row_route = QHBoxLayout()
+        # CORRECCIÓN: Fuentes más grandes para Origen y Destino
         self.origin_input = QLineEdit(); self.origin_input.setPlaceholderText("Origen"); self.origin_input.setMaxLength(3)
+        self.origin_input.setStyleSheet("font-size: 16px; font-weight: bold; text-transform: uppercase;")
+        
         self.dest_input = QLineEdit(); self.dest_input.setPlaceholderText("Destino"); self.dest_input.setMaxLength(3)
+        self.dest_input.setStyleSheet("font-size: 16px; font-weight: bold; text-transform: uppercase;")
+        
         row_route.addWidget(self.origin_input); row_route.addWidget(QLabel("→", styleSheet="color: #AAA; font-size: 18px; font-weight: bold; border:none;")); row_route.addWidget(self.dest_input)
         form_mawb.addRow("Ruta:", row_route)
 
@@ -150,7 +152,7 @@ class LabelGeneratorWidget(QWidget):
         
         self.btn_add_hawb = QPushButton("➕ Agregar Hija")
         self.btn_add_hawb.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add_hawb.setStyleSheet(BTN_WHITE) # Forzamos estilo blanco
+        self.btn_add_hawb.setStyleSheet(BTN_WHITE) 
         self.btn_add_hawb.clicked.connect(self.add_hawb_dialog)
         header_h.addWidget(self.btn_add_hawb); layout_hawb.addLayout(header_h)
 
@@ -159,11 +161,11 @@ class LabelGeneratorWidget(QWidget):
         self.hawb_list_layout = QVBoxLayout(scroll_content); self.hawb_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop); self.hawb_list_layout.setSpacing(10)
         scroll.setWidget(scroll_content); layout_hawb.addWidget(scroll); main_layout.addWidget(gb_hawb, stretch=1)
 
-        # 3. SAVE BUTTON (AZUL FUERTE)
+        # 3. SAVE BUTTON
         self.btn_save = QPushButton("💾  GUARDAR Y GENERAR ETIQUETAS")
         self.btn_save.setMinimumHeight(50)
         self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_save.setStyleSheet(BTN_BLUE) # ¡AQUÍ ESTÁ LA CORRECCIÓN!
+        self.btn_save.setStyleSheet(BTN_BLUE)
         
         self.btn_save.clicked.connect(self.save_data); main_layout.addWidget(self.btn_save)
 
@@ -190,12 +192,23 @@ class LabelGeneratorWidget(QWidget):
         row_widget = QWidget(); row_widget.setFixedHeight(55); row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; border: 1px solid #E0E0E0; border-radius: 6px; }")
         layout = QHBoxLayout(row_widget); layout.setContentsMargins(10, 5, 10, 5); layout.setSpacing(15)
         lbl_icon = QLabel("📄"); lbl_icon.setStyleSheet("border: none; background: transparent; font-size: 16px;")
-        inp_hawb = QLineEdit(hawb); inp_hawb.setReadOnly(True); inp_hawb.setStyleSheet("border: none; background: transparent; font-size: 14px; font-weight: bold; color: #333;") 
-        inp_pcs = QLineEdit(f"{pieces} pcs"); inp_pcs.setReadOnly(True); inp_pcs.setFixedWidth(80); inp_pcs.setAlignment(Qt.AlignmentFlag.AlignCenter); inp_pcs.setStyleSheet("border: 1px solid #EEE; background: #FAFAFA; border-radius: 15px; color: #555;")
+        
+        # CORRECCIÓN: HAWB en negrita y más grande
+        inp_hawb = QLineEdit(hawb)
+        inp_hawb.setReadOnly(True)
+        inp_hawb.setPlaceholderText("HAWB")
+        inp_hawb.setStyleSheet("border: none; background: transparent; font-size: 16px; font-weight: bold; color: #004080;") 
+        
+        # CORRECCIÓN: Piezas más visibles y redondas
+        inp_pcs = QLineEdit(f"{pieces} pcs")
+        inp_pcs.setReadOnly(True)
+        inp_pcs.setFixedWidth(90)
+        inp_pcs.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        inp_pcs.setStyleSheet("border: 2px solid #EEE; background: #FAFAFA; border-radius: 12px; font-size: 14px; font-weight: bold; color: #444;")
         
         btn_del = QPushButton("🗑")
         btn_del.setFixedSize(32, 32); btn_del.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_del.setStyleSheet(BTN_RED_SMALL) # Forzamos estilo rojo
+        btn_del.setStyleSheet(BTN_RED_SMALL) 
         
         btn_del.clicked.connect(lambda: self.delete_hawb_row(row_widget))
         layout.addWidget(lbl_icon); layout.addWidget(inp_hawb, 1); layout.addWidget(inp_pcs, 0); layout.addWidget(btn_del, 0)
@@ -237,15 +250,18 @@ class LabelGeneratorWidget(QWidget):
             master_id = cursor.fetchone()[0]; mawb_counter = 1
             if not active_hawbs:
                 for i in range(1, total + 1):
+                    mawb_c = f"{i}/{total}"
                     code = f"{full_mawb}-{str(i).zfill(3)}"; generate_barcode_image(code)
-                    cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (%s, %s, %s)", (master_id, f"{i}/{total}", code))
+                    cursor.execute("INSERT INTO labels (master_id, mawb_counter, barcode_data) VALUES (%s, %s, %s)", (master_id, mawb_c, code))
             else:
                 for hawb_num, pcs in active_hawbs:
                     cursor.execute("INSERT INTO houses (master_id, hawb_number, pieces) VALUES (%s, %s, %s) RETURNING id", (master_id, hawb_num, pcs))
                     house_id = cursor.fetchone()[0]
                     for i in range(1, pcs + 1):
+                        mawb_c = f"{mawb_counter}/{total}"
+                        hawb_c = f"{i}/{pcs}"
                         code = f"{full_mawb}-{hawb_num}-{str(i).zfill(3)}"; generate_barcode_image(code)
-                        cursor.execute("INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data) VALUES (%s,%s,%s,%s,%s)", (master_id, house_id, f"{mawb_counter}/{total}", f"{i}/{pcs}", code))
+                        cursor.execute("INSERT INTO labels (master_id, house_id, mawb_counter, hawb_counter, barcode_data) VALUES (%s, %s, %s, %s, %s)", (master_id, house_id, mawb_c, hawb_c, code))
                         mawb_counter += 1
             conn.commit(); conn.close()
             log_action(self.username, "CREO MAWB", full_mawb, f"Total: {total}")

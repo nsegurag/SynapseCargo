@@ -480,6 +480,7 @@ class MAWBManager(QWidget):
         self.right_layout.addWidget(lbl_hawbs)
 
         self.list_hawbs = QListWidget()
+        self.list_hawbs.itemDoubleClicked.connect(self.open_hawb_details)
         self.populate_hawbs_list(master_id)
         self.right_layout.addWidget(self.list_hawbs)
 
@@ -560,6 +561,35 @@ class MAWBManager(QWidget):
                 self.current_hawbs_data.append((hid, num, pcs))
 
     # ===================== ACCIONES =====================
+    def open_hawb_details(self, item):
+        # Índice seleccionado
+        row = self.list_hawbs.row(item)
+        if row == -1:
+            return
+
+        # current_hawbs_data = [(id, num, pcs), ...]
+        try:
+            hid, hnum, hpcs = self.current_hawbs_data[row]
+        except IndexError:
+            return
+
+        # Abrir diálogo en modo HOUSE
+        from src.ui.shipment_details import ShipmentDetailsDialog
+
+        dialog = ShipmentDetailsDialog(
+            hid,
+            hnum,
+            is_house=True,
+            parent=self
+        )
+        dialog.exec()
+
+        # 🔁 Refrescar vista al cerrar (por si hubo cambios)
+        current_row = self.table.currentRow()
+        self.load_data()
+        self.table.selectRow(current_row)
+        self.on_row_selected()
+
     def update_size(self, master_id, mawb_num):
         new_size = self.combo_size.currentText()
         try:
