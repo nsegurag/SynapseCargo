@@ -9,6 +9,7 @@ from src.ui.mawb_manager import MAWBManager
 from src.ui.label_generator import LabelGeneratorWidget as LabelGenView
 from src.ui.settings_page import SettingsPage
 from src.ui.profile_page import ProfilePage
+from src.ui.documentation_page import DocumentationPage # <--- NUEVA IMPORTACIÓN
 
 class SidebarButton(QPushButton):
     """Botón personalizado para la barra lateral - Estilo Azul Clásico"""
@@ -72,19 +73,24 @@ class MainWindow(QMainWindow):
         sidebar_layout.addWidget(lbl_logo)
         sidebar_layout.addSpacing(30)
 
+        # --- BOTONES DEL MENÚ ---
         self.btn_home = SidebarButton("Inicio", "🏠")
+        self.btn_docs = SidebarButton("Documentación", "📝") # <--- NUEVO
         self.btn_ops = SidebarButton("Operaciones", "🏷️")
         self.btn_inv = SidebarButton("Inventario", "📦")
         self.btn_profile = SidebarButton("Perfil", "👤")
         self.btn_settings = SidebarButton("Configuración", "⚙️")
         
+        # Conexiones (Índices actualizados)
         self.btn_home.clicked.connect(lambda: self.switch_page(0))
-        self.btn_ops.clicked.connect(lambda: self.switch_page(1))
-        self.btn_inv.clicked.connect(lambda: self.switch_page(2))
-        self.btn_profile.clicked.connect(lambda: self.switch_page(3))
-        self.btn_settings.clicked.connect(lambda: self.switch_page(4))
+        self.btn_docs.clicked.connect(lambda: self.switch_page(1)) # Documentación es 1
+        self.btn_ops.clicked.connect(lambda: self.switch_page(2))  # Operaciones es 2
+        self.btn_inv.clicked.connect(lambda: self.switch_page(3))  # Inventario es 3
+        self.btn_profile.clicked.connect(lambda: self.switch_page(4))
+        self.btn_settings.clicked.connect(lambda: self.switch_page(5))
 
         sidebar_layout.addWidget(self.btn_home)
+        sidebar_layout.addWidget(self.btn_docs) # Agregado al layout
         sidebar_layout.addWidget(self.btn_ops)
         sidebar_layout.addWidget(self.btn_inv)
         sidebar_layout.addWidget(self.btn_profile)
@@ -104,22 +110,31 @@ class MainWindow(QMainWindow):
         self.btn_logout.clicked.connect(self.logout)
         sidebar_layout.addWidget(self.btn_logout)
 
-        # ================= CONTENIDO =================
+        # ================= CONTENIDO (STACK) =================
         self.content_area = QStackedWidget()
         self.content_area.setStyleSheet("background-color: #FFFFFF; border-top-left-radius: 15px;")
 
+        # INDICE 0: Home
         self.page_home = HomePage(self.username)
         self.content_area.addWidget(self.page_home)
 
+        # INDICE 1: Documentación (NUEVO)
+        self.page_docs = DocumentationPage()
+        self.content_area.addWidget(self.page_docs)
+
+        # INDICE 2: Operaciones (Label Generator)
         self.page_ops = LabelGenView(self.username) 
         self.content_area.addWidget(self.page_ops)
 
+        # INDICE 3: Inventario (MAWB Manager)
         self.page_inv = MAWBManager(self.username)
         self.content_area.addWidget(self.page_inv)
 
+        # INDICE 4: Perfil
         self.page_profile = ProfilePage(self.username) 
         self.content_area.addWidget(self.page_profile)
 
+        # INDICE 5: Configuración
         self.page_settings = SettingsPage()
         self.content_area.addWidget(self.page_settings)
 
@@ -140,8 +155,8 @@ class MainWindow(QMainWindow):
         if index == 0:
             self.page_home.refresh_stats()
             
-        # 2. Si vamos al INVENTARIO (2), recargamos la tabla
-        if index == 2:
+        # 2. Si vamos al INVENTARIO (3), recargamos la tabla
+        if index == 3:
             self.page_inv.load_data()
 
     def logout(self):
